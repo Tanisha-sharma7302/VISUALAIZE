@@ -447,13 +447,37 @@ function EditorContent({ onBack }: EditorProps) {
         {nodes.length === 0 && !isGenerating && <SystemLogs />}
 
         {/* MAIN GRAPH AREA */}
-        <div className="flex-1 w-full h-full">
-            <ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypes} onNodesChange={onNodesChange} onEdgesChange={onEdgesChange} fitView minZoom={0.1}>
-                <Background color="#94a3b8" gap={40} size={1} variant={BackgroundVariant.Dots} className="opacity-[0.1]" />
-                <Controls /> 
-                <MiniMap className="!bg-slate-900/80 !backdrop-blur-md !border-slate-800 rounded-lg" nodeColor="#3b82f6" maskColor="rgba(15, 23, 42, 0.6)" />
-            </ReactFlow>
-        </div>
+<div className="flex-1 w-full h-full">
+    <ReactFlow
+        nodes={nodes}
+        edges={edges}
+        nodeTypes={nodeTypes}
+        onNodesChange={onNodesChange}
+        onEdgesChange={onEdgesChange}
+        fitView
+        minZoom={0.1}
+    >
+        <Background
+            color="#94a3b8"
+            gap={40}
+            size={1}
+            variant={BackgroundVariant.Dots}
+            className="opacity-[0.1]"
+        />
+
+        {/* Show controls only after graph generation */}
+        {nodes.length > 0 && <Controls />}
+
+        {/* Show minimap only after graph generation */}
+        {nodes.length > 0 && (
+            <MiniMap
+                className="!bg-slate-900/80 !backdrop-blur-md !border-slate-800 rounded-lg"
+                nodeColor="#3b82f6"
+                maskColor="rgba(15, 23, 42, 0.6)"
+            />
+        )}
+    </ReactFlow>
+</div>
 
         {/* INPUT BAR — hidden in focus mode so the canvas extends to the bottom edge */}
         {!isFullscreen && (
