@@ -7,7 +7,9 @@ import {
   ArrowLeft, Box, GitBranch, Network, Share2, Terminal, 
   Activity, BookOpen, PlayCircle, Layers, Code, Copy, Check, Zap, 
   Globe, Mic, Download, ChevronDown, MessageSquare, Send, Paperclip, 
-  PanelRightClose, PanelRightOpen, AlertTriangle, ArrowRight, X, RefreshCw
+  PanelRightClose, PanelRightOpen, AlertTriangle, ArrowRight, X, RefreshCw,
+    Minimize2, Maximize2
+
 } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ReactFlow, {
@@ -447,7 +449,36 @@ function EditorContent({ onBack }: EditorProps) {
         const link = document.createElement('a'); link.download = 'visualaize-graph.png'; link.href = dataUrl; link.click();
     });
   };
-
+  const handleExportSVG = () => {
+    if (reactFlowWrapper.current === null) return;
+const svgElement = (reactFlowWrapper.current as HTMLDivElement).querySelector('svg');
+    if (!svgElement) return;
+    const serializer = new XMLSerializer();
+    const svgString = serializer.serializeToString(svgElement);
+    const blob = new Blob([svgString], { type: 'image/svg+xml' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.download = 'visualaize-graph.svg';
+    link.href = url;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+  const handleExportJSON = () => {
+    if (!graphData) return;
+    const exportData = {
+      title: graphData.title,
+      nodes: nodes.map(n => ({ id: n.id, label: n.data?.label, position: n.position })),
+      edges: edges.map(e => ({ id: e.id, source: e.source, target: e.target, label: e.label })),
+    };
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.download = 'visualaize-graph.json';
+    link.href = url;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+  
   const handleCopyCode = () => {
     if (graphData?.code_snippet) {
       navigator.clipboard.writeText(graphData.code_snippet); setCopied(true); setTimeout(() => setCopied(false), 2000);
@@ -665,9 +696,17 @@ console.log(
                    <div className="flex items-center gap-2 mb-2 text-xs font-bold tracking-widest text-blue-500 uppercase"><Layers size={12} /> Analysis Complete</div>
                    <h2 className="text-xl font-bold text-white leading-tight">{graphData.title}</h2>
                 </div>
-                <button onClick={handleExport} className="focus-ring p-2 text-slate-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors" title="Export as PNG" aria-label="Export graph as PNG">
-                    <Download size={18} />
-                </button>
+                <div className="flex items-center gap-1">
+  <button onClick={handleExport} className="focus-ring p-2 text-slate-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors" title="Export as PNG" aria-label="Export graph as PNG">
+    <Download size={18} />
+  </button>
+  <button onClick={handleExportSVG} className="focus-ring px-2 py-1 text-xs text-slate-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors border border-white/10" title="Export as SVG" aria-label="Export graph as SVG">
+    SVG
+  </button>
+  <button onClick={handleExportJSON} className="focus-ring px-2 py-1 text-xs text-slate-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors border border-white/10" title="Export as JSON" aria-label="Export graph as JSON">
+    JSON
+  </button>
+</div>
             </div>
 
             <div className="flex border-b border-white/10 min-w-[450px]">
@@ -809,7 +848,8 @@ console.log(
             </>
         )}
       </div>
-      {errorState && (
+      )}
+      {errorState &&
         <ErrorModal 
           show={errorState.show}
           title={errorState.title}
@@ -822,7 +862,7 @@ console.log(
           }}
           onClose={() => setErrorState(null)} 
         />
-      )}
+      }
     </div>
   );
 }
