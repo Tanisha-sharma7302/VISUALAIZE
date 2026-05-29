@@ -1,7 +1,7 @@
 // frontend/src/components/GraphEditor.tsx
 'use client';
 
-import { toPng } from 'html-to-image';
+import { toPng, toSvg } from 'html-to-image';
 import { getLayoutedElements } from '../utils/layout'; 
 import { 
   ArrowLeft, Box, GitBranch, Network, Share2, Terminal, 
@@ -449,19 +449,20 @@ function EditorContent({ onBack }: EditorProps) {
         const link = document.createElement('a'); link.download = 'visualaize-graph.png'; link.href = dataUrl; link.click();
     });
   };
-  const handleExportSVG = () => {
+  const handleExportSVG = async () => {
     if (reactFlowWrapper.current === null) return;
-const svgElement = (reactFlowWrapper.current as HTMLDivElement).querySelector('svg');
-    if (!svgElement) return;
-    const serializer = new XMLSerializer();
-    const svgString = serializer.serializeToString(svgElement);
-    const blob = new Blob([svgString], { type: 'image/svg+xml' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.download = 'visualaize-graph.svg';
-    link.href = url;
-    link.click();
-    URL.revokeObjectURL(url);
+    try {
+      const dataUrl = await toSvg(reactFlowWrapper.current as HTMLDivElement, {
+        backgroundColor: '#020617',
+      });
+      if (!dataUrl) throw new Error('SVG export returned empty result');
+      const link = document.createElement('a');
+      link.download = 'visualaize-graph.svg';
+      link.href = dataUrl;
+      link.click();
+    } catch (error) {
+      console.error('SVG export failed:', error);
+    }
   };
   const handleExportJSON = () => {
     if (!graphData) return;
@@ -874,3 +875,4 @@ export default function GraphEditor(props: EditorProps) {
         </ReactFlowProvider>
     );
 }
+
