@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "jest"
   },
   "dependencies": {
     "@react-three/drei": "^9.122.0",
@@ -30,15 +31,21 @@
     "@eslint/js": "^9.39.4",
     "@next/eslint-plugin-next": "^16.2.6",
     "@tailwindcss/postcss": "^4",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
     "@types/dagre": "^0.7.54",
+    "@types/jest": "^30.0.0",
     "@types/node": "^25",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9.39.4",
     "eslint-config-next": "16.2.6",
     "eslint-plugin-react": "^7.37.5",
+    "jest": "^30.4.2",
+    "jest-environment-jsdom": "^30.4.1",
     "tailwindcss": "^4",
     "tailwindcss-animate": "^1.0.7",
+    "ts-jest": "^29.4.11",
     "typescript": "^6"
   }
 }
