@@ -1,14 +1,13 @@
 // frontend/src/components/GraphEditor.tsx
 'use client';
 
-import { toPng, toSvg } from 'html-to-image';
+import { toPng } from 'html-to-image';
 import { getLayoutedElements } from '../utils/layout'; 
 import { 
   ArrowLeft, Box, GitBranch, Network, Share2, Terminal, 
   Activity, BookOpen, PlayCircle, Layers, Code, Copy, Check, Zap, 
   Globe, Mic, Download, ChevronDown, MessageSquare, Send, Paperclip, 
-  PanelRightClose, PanelRightOpen, AlertTriangle, ArrowRight, X, RefreshCw,
-  Minimize2, Maximize2
+  PanelRightClose, PanelRightOpen, AlertTriangle, ArrowRight, X, RefreshCw
 } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ReactFlow, {
@@ -25,8 +24,11 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import CustomNode from '../components/CustomNode';
+import { getLayoutedElements } from '../utils/layout';
+import { mergeGraph } from '../utils/mergeGraph';
 import HolographicScene from './HolographicScene';
 import { flushSync } from 'react-dom';
+import HolographicScene from './HolographicScene';
 import ErrorModal from './ErrorModal';
 import LoadingCore from './LoadingCore';
 
@@ -383,7 +385,8 @@ useEffect(() => {
         id: n.id, type: 'custom', data: { label: n.label }, position: { x: 0, y: 0 },
         style: { background: 'transparent', border: 'none', boxShadow: 'none', width: 'auto' },
       }));
-              const rawEdges: Edge[] = data.edges.map((e: { source: string; target: string; label: string }, i: number) => ({
+      thOptions: { borderRadius: 40, offset: 15 },
+        const rawEdges: Edge[] = data.edges.map((e: { source: string; target: string; label: string }, i: number) => ({
   id: `e-${i}`,
   source: e.source,
   target: e.target,
@@ -415,10 +418,15 @@ useEffect(() => {
   },
 }));
       const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(rawNodes, rawEdges);
+      const merged = mergeGraph(
+        { nodes: layoutedNodes, edges: layoutedEdges },
+        { nodes: getNodes(), edges: getEdges() },
+        isRefineMode
+      );
       flushSync(() => {
-      setNodes(layoutedNodes);
-      setEdges(layoutedEdges);
-    });
+        setNodes(merged.nodes);
+        setEdges(merged.edges);
+      });
       
       if (fitViewTimeoutRef.current) clearTimeout(fitViewTimeoutRef.current);
       fitViewTimeoutRef.current = setTimeout(() => fitView({ padding: 0.15, duration: 800 }), 150);
@@ -554,21 +562,6 @@ useEffect(() => {
     toPng(reactFlowWrapper.current, { backgroundColor: '#020617' }).then((dataUrl) => {
         const link = document.createElement('a'); link.download = 'visualaize-graph.png'; link.href = dataUrl; link.click();
     });
-  };
-  const handleExportSVG = async () => {
-    if (!reactFlowWrapper.current) { alert('Nothing to export!'); return; }
-    try {
-      const dataUrl = await toSvg(reactFlowWrapper.current as HTMLDivElement, { backgroundColor: '#020617' });
-      const link = document.createElement('a'); link.download = 'diagram.svg'; link.href = dataUrl; link.click();
-    } catch (error) { alert('SVG export failed!'); }
-  };
-  const handleExportJSON = () => {
-    if (!nodes || nodes.length === 0) { alert('Nothing to export!'); return; }
-    const json = JSON.stringify({ title: graphData?.title ?? '', viewport: getViewport(), nodes, edges }, null, 2);
-    const blob = new Blob([json], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a'); link.download = 'diagram.json'; link.href = url; link.click();
-    URL.revokeObjectURL(url);
   };
 
   const handleCopyCode = () => {
@@ -813,8 +806,8 @@ console.log(
         {/* MAIN GRAPH AREA */}
         <div className="flex-1 w-full h-full">
             <ReactFlow
-              nodes={nodes}
-              edges={edges}
+              nodes={visibleNodes}
+              edges={filteredEdges}
               nodeTypes={nodeTypes}
               onNodesChange={onNodesChange}
               onEdgesChange={onEdgesChange}
@@ -876,8 +869,10 @@ console.log(
                   </button>
                 )}
 
-                <button type="submit" disabled={isGenerating} className="px-6 py-2 rounded-full bg-gradient-to-r from-indigo-600 to-fuchsia-600 hover:from-indigo-500 hover:to-fuchsia-500 text-white font-bold text-xs tracking-widest transition-all shadow-lg shadow-indigo-500/30 border border-white/10">
+                <button type="submit" disabled={isGenerating} className="px-6 py-2 rounded-full bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs tracking-widest transition-all shadow-lg shadow-blue-500/20">
                     {isGenerating ? <span className="animate-pulse">PROCESSING</span> : (isRefineMode ? "REFINE" : "GENERATE")}
+                <button type="submit" disabled={isGenerating} className="px-6 py-2 rounded-full bg-gradient-to-r from-indigo-600 to-fuchsia-600 hover:from-indigo-500 hover:to-fuchsia-500 text-white font-bold text-xs tracking-widest transition-all shadow-lg shadow-indigo-500/30 border border-white/10">
+                    {isGenerating ? <span className="animate-pulse">PROCESSING</span> : "GENERATE"}
                 </button>
             </form>
         </div>
@@ -1084,11 +1079,3 @@ export default function GraphEditor(props: EditorProps) {
         </ReactFlowProvider>
     );
 }
-
-
-
-
-
-
-
-
