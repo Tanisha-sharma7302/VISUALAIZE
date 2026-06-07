@@ -2,15 +2,13 @@
 'use client';
 
 import { toPng, toSvg } from 'html-to-image';
-import { getLayoutedElements } from '../utils/layout'; 
 import { 
   ArrowLeft, Box, GitBranch, Network, Share2, Terminal, 
   Activity, BookOpen, PlayCircle, Layers, Code, Copy, Check, Zap, 
   Globe, Mic, Download, ChevronDown, MessageSquare, Send, Paperclip, 
   PanelRightClose, PanelRightOpen, AlertTriangle, ArrowRight, X, RefreshCw,
     Minimize2, Maximize2
-
-} from 'lucide-react';
+} from 'lucide-react'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ReactFlow, {
   applyEdgeChanges, applyNodeChanges,
@@ -26,10 +24,11 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import CustomNode from '../components/CustomNode';
+import { getLayoutedElements } from '../utils/layout';
 import HolographicScene from './HolographicScene';
+import { flushSync } from 'react-dom';
 import ErrorModal from './ErrorModal';
 import LoadingCore from './LoadingCore';
-import LoadingOverlay from './LoadingOverlay';
 
 interface EditorProps { onBack: () => void; }
 
@@ -114,6 +113,19 @@ const glassControlsStyle = `
     outline: 2px solid rgba(99, 102, 241, 0.85) !important;
     outline-offset: -2px !important;
     box-shadow: inset 0 0 0 2px rgba(99, 102, 241, 0.85) !important;
+  }
+  .react-flow__node {
+    transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.4s ease !important;
+  }
+  .react-flow__attribution {
+    background: transparent !important;
+  }
+  .react-flow__attribution a {
+    color: rgba(148, 163, 184, 0.5) !important;
+    font-size: 10px !important;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-weight: 600;
   }
 `;
 
@@ -205,6 +217,7 @@ function EditorContent({ onBack }: EditorProps) {
   const [isChatting, setIsChatting] = useState(false);
   
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isRefineMode, setIsRefineMode] = useState(false);
   const clientId = useRef(crypto.randomUUID());
   const roomId = useRef("room_1");
   const [errorState, setErrorState] = useState<{
@@ -228,6 +241,17 @@ function EditorContent({ onBack }: EditorProps) {
   const codeCache = useRef(new Map<string, codeObject>());
   const reactFlowWrapper = useRef(null);
   const fileInputRef = useRef<HTMLInputElement>(null); 
+  const { getNodes, getEdges, fitView } = useReactFlow(); 
+
+  const copyTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const fitViewTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
+      if (fitViewTimeoutRef.current) clearTimeout(fitViewTimeoutRef.current);
+    };
+  }, []);
   const { getViewport } = useReactFlow();
 
  const nodeTypes = useMemo(() => ({
@@ -270,6 +294,17 @@ function EditorContent({ onBack }: EditorProps) {
 
   const rafRef = useRef<number | null>(null);
   const socketRef = useRef<WebSocket | null>(null);
+  // Warn user before leaving with unsaved diagram
+useEffect(() => {
+  const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+    if (nodes.length > 0) {
+      e.preventDefault();
+      e.returnValue = '';
+    }
+  };
+  window.addEventListener('beforeunload', handleBeforeUnload);
+  return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+}, [nodes]);
 
   const onMove = useCallback((_: any, vp: any) => {
   if (rafRef.current) cancelAnimationFrame(rafRef.current);
@@ -289,8 +324,6 @@ function EditorContent({ onBack }: EditorProps) {
     setChatHistory([]);
     setIsSidebarOpen(false);
     setshowLanguageDropDown(false);
-
-    console.log("🚀 [FRONTEND] Connecting to Backend at:", BACKEND_URL);
 
     try {
       const res = await fetch(`${BACKEND_URL}/generate`, {
@@ -341,7 +374,6 @@ function EditorContent({ onBack }: EditorProps) {
       }
       
       const data = await res.json();
-      console.log("✅ [SUCCESS] Data received:", data);
       
       setGraphData(data);
       codeCache.current.clear();
@@ -351,18 +383,45 @@ function EditorContent({ onBack }: EditorProps) {
         id: n.id, type: 'custom', data: { label: n.label }, position: { x: 0, y: 0 },
         style: { background: 'transparent', border: 'none', boxShadow: 'none', width: 'auto' },
       }));
-      const rawEdges: Edge[] = data.edges.map((e: { source: string; target: string; label: string }, i: number) => ({
-        id: `e-${i}`, source: e.source, target: e.target, label: e.label, type: 'default', animated: true,
-        markerEnd: { type: MarkerType.ArrowClosed, color: '#60a5fa' },
-        style: { stroke: '#3b82f6', strokeWidth: 2, filter: 'drop-shadow(0 0 3px #3b82f6)' },
-        labelStyle: { fill: '#93c5fd', fontWeight: 700 }
-      }));
+        const rawEdges: Edge[] = data.edges.map((e: { source: string; target: string; label: string }, i: number) => ({
+  id: `e-${i}`,
+  source: e.source,
+  target: e.target,
+  label: e.label,
+  type: 'smoothstep',
+  markerEnd: {
+    type: MarkerType.ArrowClosed,
+    color: 'rgba(59, 130, 246, 0.7)',
+    width: 12,
+    height: 12
+  },
+  style: {
+    stroke: 'rgba(59, 130, 246, 0.4)',
+    strokeWidth: 1.5,
+    transition: 'stroke 0.3s ease'
+  },
+  labelStyle: {
+    fill: '#93c5fd',
+    fontWeight: 600,
+    fontSize: 10,
+    letterSpacing: '0.5px'
+  },
+  labelBgPadding: [8, 4],
+  labelBgBorderRadius: 6,
+  labelBgStyle: {
+    fill: 'rgba(15, 23, 42, 0.9)',
+    stroke: 'rgba(59, 130, 246, 0.2)',
+    strokeWidth: 1
+  },
+}));
       const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(rawNodes, rawEdges);
-      setNodes(layoutedNodes);
-      setEdges(layoutedEdges);
-      console.log("RAW BACKEND DATA:", data.nodes, data.edges);
-      console.log("LAYOUTED NODES:", layoutedNodes.length);
-      console.log("LAYOUTED EDGES:", layoutedEdges.length);
+      flushSync(() => {
+  setNodes(layoutedNodes);
+  setEdges(layoutedEdges);
+});
+      
+      if (fitViewTimeoutRef.current) clearTimeout(fitViewTimeoutRef.current);
+      fitViewTimeoutRef.current = setTimeout(() => fitView({ padding: 0.15, duration: 800 }), 150);
       setIsSidebarOpen(true); 
 
     } catch (err: any) {
@@ -475,8 +534,12 @@ function EditorContent({ onBack }: EditorProps) {
   };
 
   const startListening = () => {
-    if ('webkitSpeechRecognition' in window) {
-      const recognition = new (window as WindowWithSpeech).webkitSpeechRecognition();
+  const SpeechAPI =
+    (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+
+  if (SpeechAPI) {
+    const recognition = new SpeechAPI();
+
       recognition.continuous = false; recognition.lang = 'en-US'; setIsListening(true);
       recognition.onresult = (event: SpeechRecognitionEvent) => {
         const transcript = event.results[0][0].transcript;
@@ -492,40 +555,47 @@ function EditorContent({ onBack }: EditorProps) {
         const link = document.createElement('a'); link.download = 'visualaize-graph.png'; link.href = dataUrl; link.click();
     });
   };
+
   const handleExportSVG = async () => {
-    if (reactFlowWrapper.current === null) return;
+    if (!reactFlowWrapper.current) {
+      alert('Nothing to export!');
+      return;
+    }
     try {
       const dataUrl = await toSvg(reactFlowWrapper.current as HTMLDivElement, {
         backgroundColor: '#020617',
       });
-      if (!dataUrl) throw new Error('SVG export returned empty result');
       const link = document.createElement('a');
-      link.download = 'visualaize-graph.svg';
+      link.download = 'diagram.svg';
       link.href = dataUrl;
       link.click();
     } catch (error) {
       console.error('SVG export failed:', error);
+      alert('SVG export failed!');
     }
   };
+
   const handleExportJSON = () => {
-    if (!graphData) return;
-    const exportData = {
-      title: graphData.title,
-      nodes: nodes.map(n => ({ id: n.id, label: n.data?.label, position: n.position })),
-      edges: edges.map(e => ({ id: e.id, source: e.source, target: e.target, label: e.label })),
-    };
-    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+    if (!nodes || nodes.length === 0) {
+      alert('Nothing to export!');
+      return;
+    }
+    const json = JSON.stringify({ nodes, edges }, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
-    link.download = 'visualaize-graph.json';
+    link.download = 'diagram.json';
     link.href = url;
     link.click();
     URL.revokeObjectURL(url);
   };
-  
+
   const handleCopyCode = () => {
     if (graphData?.code_snippet) {
-      navigator.clipboard.writeText(graphData.code_snippet); setCopied(true); setTimeout(() => setCopied(false), 2000);
+      navigator.clipboard.writeText(graphData.code_snippet); 
+      setCopied(true); 
+      if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
+      copyTimeoutRef.current = setTimeout(() => setCopied(false), 2000);
     }
   };
 
@@ -684,7 +754,7 @@ console.log(
       </div>
 
       <div className="absolute inset-0 bg-slate-950/20 pointer-events-none z-0" />
-      {isGenerating && <LoadingOverlay />}
+      {isGenerating && <LoadingCore />}
 
       {/* 4. MAIN UI LAYER */}
       <div className="relative flex-1 h-full flex flex-col z-10" ref={reactFlowWrapper}>
@@ -735,7 +805,7 @@ console.log(
       </div>
     ))}
   </div>
-</div>s
+</div>
 
         {/*
           FULLSCREEN / FOCUS MODE TOGGLE
@@ -819,6 +889,14 @@ console.log(
                     <Mic size={18} />
                 </button>
 
+                {nodes.length > 0 && (
+                  <button type="button" onClick={() => setIsRefineMode(!isRefineMode)} title="Toggle Refine Mode" className={`focus-ring p-2 rounded-full transition-all ${isRefineMode ? 'bg-purple-500 text-white shadow-[0_0_10px_rgba(168,85,247,0.5)]' : 'text-slate-400 hover:text-white hover:bg-white/10'}`}>
+                      <Layers size={18} />
+                  </button>
+                )}
+
+                <button type="submit" disabled={isGenerating} className="px-6 py-2 rounded-full bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs tracking-widest transition-all shadow-lg shadow-blue-500/20">
+                    {isGenerating ? <span className="animate-pulse">PROCESSING</span> : (isRefineMode ? "REFINE" : "GENERATE")}
                 <button type="submit" disabled={isGenerating} className="px-6 py-2 rounded-full bg-gradient-to-r from-indigo-600 to-fuchsia-600 hover:from-indigo-500 hover:to-fuchsia-500 text-white font-bold text-xs tracking-widest transition-all shadow-lg shadow-indigo-500/30 border border-white/10">
                     {isGenerating ? <span className="animate-pulse">PROCESSING</span> : "GENERATE"}
                 </button>
@@ -857,17 +935,9 @@ console.log(
                    <div className="flex items-center gap-2 mb-2 text-xs font-bold tracking-widest text-blue-500 uppercase"><Layers size={12} /> Analysis Complete</div>
                    <h2 className="text-xl font-bold text-white leading-tight">{graphData.title}</h2>
                 </div>
-                <div className="flex items-center gap-1">
-  <button onClick={handleExport} className="focus-ring p-2 text-slate-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors" title="Export as PNG" aria-label="Export graph as PNG">
-    <Download size={18} />
-  </button>
-  <button onClick={handleExportSVG} className="focus-ring px-2 py-1 text-xs text-slate-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors border border-white/10" title="Export as SVG" aria-label="Export graph as SVG">
-    SVG
-  </button>
-  <button onClick={handleExportJSON} className="focus-ring px-2 py-1 text-xs text-slate-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors border border-white/10" title="Export as JSON" aria-label="Export graph as JSON">
-    JSON
-  </button>
-</div>
+                <button onClick={handleExport} className="focus-ring p-2 text-slate-400 hover:text-white hover:bg-white/10 rounded-lg transition-colors" title="Export as PNG" aria-label="Export graph as PNG">
+                    <Download size={18} />
+                </button>
             </div>
 
             <div className="flex border-b border-white/10 min-w-[450px]">
@@ -1010,7 +1080,7 @@ console.log(
         )}
       </div>
       )}
-      {errorState &&
+      {errorState && (
         <ErrorModal 
           show={errorState.show}
           title={errorState.title}
@@ -1023,7 +1093,7 @@ console.log(
           }}
           onClose={() => setErrorState(null)} 
         />
-      }
+      )}
     </div>
   );
 }
@@ -1035,4 +1105,3 @@ export default function GraphEditor(props: EditorProps) {
         </ReactFlowProvider>
     );
 }
-
